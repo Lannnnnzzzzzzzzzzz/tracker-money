@@ -1,277 +1,181 @@
-import { useState, useEffect } from 'react';
-import axios from 'axios';
-import { format } from 'date-fns';
-import { PieChart, Pie, Cell, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import { useState } from 'react';
+import { FiDollarSign, FiTrendingUp, FiPieChart, FiMessageSquare } from 'react-icons/fi';
+import AuthModal from '../components/AuthModal';
 
-const Dashboard = () => {
-  const [transactions, setTransactions] = useState([]);
-  const [summary, setSummary] = useState({ income: 0, expense: 0, balance: 0 });
-  const [categoryData, setCategoryData] = useState([]);
-  const [monthlyTrend, setMonthlyTrend] = useState([]);
-  const [autoCommand, setAutoCommand] = useState('');
-  const [isProcessing, setIsProcessing] = useState(false);
-  const [notification, setNotification] = useState({ show: false, message: '', type: '' });
+export default function Home() {
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+  const [authMode, setAuthMode] = useState('login');
 
-  useEffect(() => {
-    fetchTransactions();
-  }, []);
-
-  useEffect(() => {
-    if (notification.show) {
-      const timer = setTimeout(() => {
-        setNotification({ show: false, message: '', type: '' });
-      }, 3000);
-      return () => clearTimeout(timer);
+  const features = [
+    {
+      icon: <FiDollarSign className="text-3xl text-blue-500" />,
+      title: 'Catat Transaksi',
+      description: 'Kelola pemasukan dan pengeluaran dengan mudah'
+    },
+    {
+      icon: <FiTrendingUp className="text-3xl text-green-500" />,
+      title: 'Laporan Keuangan',
+      description: 'Analisis keuangan dengan grafik interaktif'
+    },
+    {
+      icon: <FiPieChart className="text-3xl text-purple-500" />,
+      title: 'Visualisasi Data',
+      description: 'Lihat pengeluaran per kategori'
+    },
+    {
+      icon: <FiMessageSquare className="text-3xl text-yellow-500" />,
+      title: 'AI Assistant',
+      description: 'Dapatkan wawasan keuangan dari AI'
     }
-  }, [notification]);
-
-  const fetchTransactions = async () => {
-    try {
-      const response = await axios.get('/api/transactions');
-      const data = response.data;
-      setTransactions(data);
-      
-      // Calculate summary
-      const income = data
-        .filter(t => t.type === 'income')
-        .reduce((sum, t) => sum + t.amount, 0);
-      
-      const expense = data
-        .filter(t => t.type === 'expense')
-        .reduce((sum, t) => sum + t.amount, 0);
-      
-      setSummary({
-        income,
-        expense,
-        balance: income - expense
-      });
-      
-      // Prepare category data for pie chart
-      const categoryMap = {};
-      data
-        .filter(t => t.type === 'expense')
-        .forEach(t => {
-          if (categoryMap[t.category]) {
-            categoryMap[t.category] += t.amount;
-          } else {
-            categoryMap[t.category] = t.amount;
-          }
-        });
-      
-      const categoryDataArray = Object.keys(categoryMap).map(category => ({
-        name: category,
-        value: categoryMap[category]
-      }));
-      
-      setCategoryData(categoryDataArray);
-      
-      // Prepare monthly trend data
-      const monthlyMap = {};
-      data.forEach(t => {
-        const month = format(new Date(t.date), 'MMM yyyy');
-        if (!monthlyMap[month]) {
-          monthlyMap[month] = { income: 0, expense: 0 };
-        }
-        
-        if (t.type === 'income') {
-          monthlyMap[month].income += t.amount;
-        } else {
-          monthlyMap[month].expense += t.amount;
-        }
-      });
-      
-      const monthlyDataArray = Object.keys(monthlyMap).map(month => ({
-        month,
-        income: monthlyMap[month].income,
-        expense: monthlyMap[month].expense,
-        balance: monthlyMap[month].income - monthlyMap[month].expense
-      }));
-      
-      setMonthlyTrend(monthlyDataArray);
-    } catch (error) {
-      console.error('Error fetching transactions:', error);
-    }
-  };
-
-  const handleAutoCommand = async (e) => {
-    e.preventDefault();
-    
-    if (!autoCommand.trim()) return;
-    
-    setIsProcessing(true);
-    
-    try {
-      const response = await axios.post('/api/transactions/auto', {
-        command: autoCommand
-      });
-      
-      if (response.data.success) {
-        // Reset command input
-        setAutoCommand('');
-        // Refresh transactions
-        fetchTransactions();
-        // Show success notification
-        setNotification({
-          show: true,
-          message: `Transaksi berhasil ditambahkan: ${response.data.transaction.type === 'income' ? '+' : '-'}Rp ${response.data.transaction.amount.toLocaleString('id-ID')}`,
-          type: 'success'
-        });
-      } else {
-        setNotification({
-          show: true,
-          message: 'Gagal menambahkan transaksi: ' + response.data.error,
-          type: 'error'
-        });
-      }
-    } catch (error) {
-      console.error('Error with auto command:', error);
-      setNotification({
-        show: true,
-        message: 'Terjadi kesalahan: ' + (error.response?.data?.error || error.message),
-        type: 'error'
-      });
-    } finally {
-      setIsProcessing(false);
-    }
-  };
-
-  const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8'];
-
-  const exampleCommands = [
-    "nabung 30rb",
-    "beli makanan 25000",
-    "bayar tagihan listrik 150000",
-    "kasih orang tua 500000",
-    "isi pulsa 30000"
   ];
 
   return (
-    <div>
-      {/* Notification */}
-      {notification.show && (
-        <div className={`mb-4 p-4 rounded-lg ${
-          notification.type === 'success' ? 'bg-green-800 text-green-100' : 'bg-red-800 text-red-100'
-        }`}>
-          {notification.message}
-        </div>
-      )}
-      
-      <h1 className="text-2xl md:text-3xl font-bold mb-4 md:mb-6">Dashboard</h1>
-      
-      {/* Quick Transaction Section */}
-      <div className="bg-gray-800 p-4 md:p-6 rounded-lg shadow mb-6 md:mb-8">
-        <h2 className="text-lg md:text-xl font-semibold mb-4">Tambah Transaksi Cepat</h2>
-        <p className="text-gray-400 mb-4">Ketik perintah seperti "nabung 30rb" untuk menambah transaksi secara otomatis</p>
-        
-        <form onSubmit={handleAutoCommand} className="mb-4">
-          <div className="flex gap-2">
-            <input
-              type="text"
-              value={autoCommand}
-              onChange={(e) => setAutoCommand(e.target.value)}
-              placeholder="Contoh: nabung 30rb"
-              className="flex-1 p-2 rounded bg-gray-700 border border-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
-              disabled={isProcessing}
-            />
-            <button
-              type="submit"
-              className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg disabled:opacity-50"
-              disabled={isProcessing}
+    <div className="min-h-screen bg-gradient-to-br from-gray-900 to-gray-800 text-white">
+      {/* Hero Section */}
+      <div className="container mx-auto px-4 py-16">
+        <div className="text-center mb-16">
+          <h1 className="text-4xl md:text-6xl font-bold mb-6">
+            Catatan Keuangan Pribadi
+          </h1>
+          <p className="text-xl text-gray-300 mb-8 max-w-2xl mx-auto">
+            Kelola keuangan Anda dengan mudah, aman, dan cerdas. Dapatkan wawasan dari AI untuk pengambilan keputusan yang lebih baik.
+          </p>
+          
+          <div className="flex flex-col sm:flex-row gap-4 justify-center">
+            <button 
+              onClick={() => {
+                setAuthMode('login');
+                setIsAuthModalOpen(true);
+              }}
+              className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg font-medium transition"
             >
-              {isProcessing ? 'Memproses...' : 'Tambah Otomatis'}
+              Login
+            </button>
+            <button 
+              onClick={() => {
+                setAuthMode('register');
+                setIsAuthModalOpen(true);
+              }}
+              className="bg-transparent border-2 border-blue-600 text-blue-600 hover:bg-blue-600 hover:text-white px-6 py-3 rounded-lg font-medium transition"
+            >
+              Daftar Gratis
             </button>
           </div>
-        </form>
-        
-        <div className="mt-4">
-          <h3 className="font-medium mb-2">Contoh Perintah:</h3>
-          <div className="flex flex-wrap gap-2">
-            {exampleCommands.map((cmd, index) => (
-              <button
-                key={index}
-                onClick={() => setAutoCommand(cmd)}
-                className="bg-gray-700 hover:bg-gray-600 text-white px-3 py-1 rounded-lg text-sm"
-              >
-                {cmd}
-              </button>
-            ))}
+        </div>
+
+        {/* Features Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 mt-16">
+          {features.map((feature, index) => (
+            <div 
+              key={index} 
+              className="bg-gray-800 p-6 rounded-xl hover:bg-gray-750 transition-all duration-300 hover:scale-105"
+            >
+              <div className="mb-4">
+                {feature.icon}
+              </div>
+              <h3 className="text-xl font-semibold mb-2">{feature.title}</h3>
+              <p className="text-gray-400">{feature.description}</p>
+            </div>
+          ))}
+        </div>
+
+        {/* How It Works */}
+        <div className="mt-24">
+          <h2 className="text-3xl font-bold text-center mb-12">Cara Kerja</h2>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+            <div className="text-center">
+              <div className="bg-blue-600 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
+                <span className="text-white text-xl font-bold">1</span>
+              </div>
+              <h3 className="text-xl font-semibold mb-2">Daftar Akun</h3>
+              <p className="text-gray-400">Buat akun gratis dalam hitungan menit</p>
+            </div>
+            <div className="text-center">
+              <div className="bg-green-600 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
+                <span className="text-white text-xl font-bold">2</span>
+              </div>
+              <h3 className="text-xl font-semibold mb-2">Tambah Transaksi</h3>
+              <p className="text-gray-400">Catat pemasukan dan pengeluaran dengan mudah</p>
+            </div>
+            <div className="text-center">
+              <div className="bg-purple-600 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
+                <span className="text-white text-xl font-bold">3</span>
+              </div>
+              <h3 className="text-xl font-semibold mb-2">Analisis</h3>
+              <p className="text-gray-400">Dapatkan laporan dan wawasan dari AI</p>
+            </div>
           </div>
         </div>
       </div>
-      
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6 mb-6 md:mb-8">
-        <div className="bg-gray-800 p-4 md:p-6 rounded-lg shadow">
-          <h2 className="text-lg md:text-xl font-semibold mb-2">Total Pemasukan</h2>
-          <p className="text-2xl md:text-3xl text-green-400">Rp {summary.income.toLocaleString('id-ID')}</p>
-        </div>
-        
-        <div className="bg-gray-800 p-4 md:p-6 rounded-lg shadow">
-          <h2 className="text-lg md:text-xl font-semibold mb-2">Total Pengeluaran</h2>
-          <p className="text-2xl md:text-3xl text-red-400">Rp {summary.expense.toLocaleString('id-ID')}</p>
-        </div>
-        
-        <div className="bg-gray-800 p-4 md:p-6 rounded-lg shadow">
-          <h2 className="text-lg md:text-xl font-semibold mb-2">Saldo</h2>
-          <p className={`text-2xl md:text-3xl ${summary.balance >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-            Rp {summary.balance.toLocaleString('id-ID')}
-          </p>
-        </div>
-      </div>
-      
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 md:gap-8">
-        <div className="bg-gray-800 p-4 md:p-6 rounded-lg shadow">
-          <h2 className="text-lg md:text-xl font-semibold mb-4">Pengeluaran per Kategori</h2>
-          <div className="h-64 md:h-80">
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie
-                  data={categoryData}
-                  cx="50%"
-                  cy="50%"
-                  labelLine={false}
-                  outerRadius={60}
-                  fill="#8884d8"
-                  dataKey="value"
-                  label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
-                >
-                  {categoryData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                  ))}
-                </Pie>
-                <Tooltip formatter={(value) => [`Rp ${value.toLocaleString('id-ID')}`, 'Jumlah']} />
-              </PieChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-        
-        <div className="bg-gray-800 p-4 md:p-6 rounded-lg shadow">
-          <h2 className="text-lg md:text-xl font-semibold mb-4">Tren Bulanan</h2>
-          <div className="h-64 md:h-80">
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart
-                data={monthlyTrend}
-                margin={{
-                  top: 5,
-                  right: 30,
-                  left: 20,
-                  bottom: 5,
-                }}
-              >
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="month" />
-                <YAxis />
-                <Tooltip formatter={(value) => [`Rp ${value.toLocaleString('id-ID')}`, '']} />
-                <Legend />
-                <Line type="monotone" dataKey="income" stroke="#00C49F" name="Pemasukan" activeDot={{ r: 8 }} />
-                <Line type="monotone" dataKey="expense" stroke="#FF8042" name="Pengeluaran" />
-                <Line type="monotone" dataKey="balance" stroke="#0088FE" name="Saldo" />
-              </LineChart>
-            </ResponsiveContainer>
+
+      {/* Testimonials */}
+      <div className="mt-24 bg-gray-800 py-16">
+        <div className="container mx-auto px-4">
+          <h2 className="text-3xl font-bold text-center mb-12">Apa Kata Mereka</h2>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+            <div className="bg-gray-700 p-6 rounded-lg">
+              <div className="flex items-center mb-4">
+                <div className="w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center mr-3">
+                  <span className="text-white font-bold">A</span>
+                </div>
+                <div>
+                  <h4 className="font-semibold">Alim</h4>
+                  <p className="text-sm text-gray-400">alim@example.com</p>
+                </div>
+              </div>
+              <p className="text-gray-300">"Sangat membantu dalam mengatur keuangan pribadi. Fitur AI-nya luar biasa!"</p>
+            </div>
+            <div className="bg-gray-700 p-6 rounded-lg">
+              <div className="flex items-center mb-4">
+                <div className="w-10 h-10 rounded-full bg-green-600 flex items-center justify-center mr-3">
+                  <span className="text-white font-bold">B</span>
+                </div>
+                <div>
+                  <h4 className="font-semibold">Budi</h4>
+                  <p className="text-sm text-gray-400">budi@example.com</p>
+                </div>
+              </div>
+              <p className="text-gray-300">"Interface yang intuitif dan mudah digunakan. Recomended!"</p>
+            </div>
+            <div className="bg-gray-700 p-6 rounded-lg">
+              <div className="flex items-center mb-4">
+                <div className="w-10 h-10 rounded-full bg-purple-600 flex items-center justify-center mr-3">
+                  <span className="text-white font-bold">C</span>
+                </div>
+                <div>
+                  <h4 className="font-semibold">Citra</h4>
+                  <p className="text-sm text-gray-400">citra@example.com</p>
+                </div>
+              </div>
+              <p className="text-gray-300">"Grafik dan laporan yang detail sangat membantu dalam perencanaan keuangan."</p>
+            </div>
           </div>
         </div>
       </div>
+
+      {/* CTA Section */}
+      <div className="mt-24 text-center">
+        <h2 className="text-3xl font-bold mb-6">Mulai Kelola Keuangan Anda Hari Ini</h2>
+        <p className="text-xl text-gray-300 mb-8 max-w-2xl mx-auto">
+          Bergabung dengan ribuan pengguna lain yang telah mengubah cara mereka mengelola keuangan
+        </p>
+        <button 
+          onClick={() => {
+            setAuthMode('register');
+            setIsAuthModalOpen(true);
+          }}
+          className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-3 rounded-lg font-medium text-lg transition"
+        >
+          Daftar Sekarang - Gratis
+        </button>
+      </div>
+
+      <AuthModal 
+        isOpen={isAuthModalOpen}
+        onClose={() => setIsAuthModalOpen(false)}
+        mode={authMode}
+        onModeChange={setAuthMode}
+      />
     </div>
   );
-};
-
-export default Dashboard;
+}
