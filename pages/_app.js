@@ -3,7 +3,6 @@ import { useState, useEffect } from 'react';
 import Navbar from '../components/Navbar';
 import AuthModal from '../components/AuthModal';
 import SettingsModal from '../components/SettingsModal';
-import Footer from '../components/Footer.jsx
 import { useRouter } from 'next/router';
 
 function MyApp({ Component, pageProps }) {
@@ -85,9 +84,6 @@ function MyApp({ Component, pageProps }) {
         onClose={() => setIsSettingsModalOpen(false)}
         user={user}
         onUpdate={handleUpdateUser}
-  
-        {/* Footer */}
-      <Footer />
       />
     </div>
   );
