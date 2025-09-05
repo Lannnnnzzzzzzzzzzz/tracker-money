@@ -1,47 +1,94 @@
 import '../styles/globals.css';
-import { useState } from 'react';
-import Sidebar from '../components/Sidebar.jsx'
-import Footer from '../components/Footer.jsx'
-
-
-
+import { useState, useEffect } from 'react';
+import Navbar from '../components/Navbar';
+import AuthModal from '../components/AuthModal';
+import SettingsModal from '../components/SettingsModal';
+import Footer from '../components/Footer.jsx
+import { useRouter } from 'next/router';
 
 function MyApp({ Component, pageProps }) {
-  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [user, setUser] = useState(null);
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+  const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
+  const [authMode, setAuthMode] = useState('login');
+  const router = useRouter();
 
-  return (
-    <div className="flex flex-col min-h-screen bg-gray-900 text-white">
-      <div className="flex flex-1 overflow-hidden">
-        {/* Sidebar - Hidden on mobile by default */}
-        <div className={`${sidebarOpen ? 'translate-x-0' : '-translate-x-full'} fixed inset-y-0 left-0 z-50 w-64 bg-gray-800 transform transition duration-300 ease-in-out md:translate-x-0 md:static md:inset-0`}>
-          <Sidebar onClose={() => setSidebarOpen(false)} />
-        </div>
-        
-        {/* Main Content */}
-        <div className="flex-1 overflow-y-auto">
-          {/* Mobile Header */}
-          <div className="md:hidden bg-gray-800 p-4 flex items-center justify-between">
-            <button 
-              onClick={() => setSidebarOpen(!sidebarOpen)}
-              className="text-white focus:outline-none"
-            >
-              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16M4 18h16"></path>
-              </svg>
-            </button>
-            <h1 className="text-xl font-bold">Catatan Keuangan</h1>
-            <div></div> {/* Spacer for alignment */}
-          </div>
-          
-          {/* Page Content */}
-          <div className="p-4 md:p-6">
-            <Component {...pageProps} />
-          </div>
+  useEffect(() => {
+    // Check if user is logged in
+    const token = localStorage.getItem('token');
+    const userData = localStorage.getItem('user');
+    
+    if (token && userData) {
+      setUser(JSON.parse(userData));
+    } else if (router.pathname !== '/') {
+      router.push('/');
+    }
+  }, [router.pathname]);
+
+  const handleLogout = () => {
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+    setUser(null);
+    router.push('/');
+  };
+
+  const handleOpenSettings = () => {
+    setIsSettingsModalOpen(true);
+  };
+
+  const handleUpdateUser = (updatedUser) => {
+    setUser(updatedUser);
+    localStorage.setItem('user', JSON.stringify(updatedUser));
+  };
+
+  // Protected route
+  const isProtectedRoute = ['/dashboard', '/transactions', '/reports', '/ai-assistant', '/settings'].includes(router.pathname);
+  
+  if (isProtectedRoute && !user) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-900 text-white">
+        <div className="text-center">
+          <h1 className="text-2xl font-bold mb-4">Access Denied</h1>
+          <p className="mb-4">Please login to access this page</p>
+          <button 
+            onClick={() => setIsAuthModalOpen(true)}
+            className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg"
+          >
+            Login
+          </button>
         </div>
       </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen flex flex-col bg-gray-900 text-white">
+      <Navbar 
+        user={user} 
+        onLogout={handleLogout} 
+        onOpenSettings={handleOpenSettings}
+      />
       
-      {/* Footer */}
+      <main className="flex-1 overflow-y-auto">
+        <Component {...pageProps} />
+      </main>
+
+      <AuthModal 
+        isOpen={isAuthModalOpen}
+        onClose={() => setIsAuthModalOpen(false)}
+        mode={authMode}
+        onModeChange={setAuthMode}
+      />
+      
+      <SettingsModal 
+        isOpen={isSettingsModalOpen}
+        onClose={() => setIsSettingsModalOpen(false)}
+        user={user}
+        onUpdate={handleUpdateUser}
+  
+        {/* Footer */}
       <Footer />
+      />
     </div>
   );
 }
