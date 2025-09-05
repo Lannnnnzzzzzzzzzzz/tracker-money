@@ -1,22 +1,29 @@
-import { MongoClient } from 'mongodb';
+import clientPromise from '../../../lib/mongodb';
 import { OpenAI } from 'openai';
+import { verifyToken } from '../../../lib/auth';
 
-const uri = process.env.MONGODB_URI;
-const client = new MongoClient(uri);
-
-// Initialize OpenAI with OpenRouter
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
   baseURL: process.env.OPENAI_API_BASE || 'https://openrouter.ai/api/v1',
 });
 
 export default async function handler(req, res) {
-  const { command } = req.body;
-
   try {
-    console.log('Processing command:', command);
-    
-    // Process command with OpenAI via OpenRouter
+    // Verify token
+    const token = req.headers.authorization?.split(' ')[1];
+    if (!token) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const decoded = verifyToken(token);
+    if (!decoded) {
+      return res.status(401).json({ error: 'Invalid token' });
+    }
+
+    const { command } = req.body;
+    const userId = decoded.id;
+
+    // Process command with OpenAI
     const prompt = `
       Anda adalah asisten keuangan. Analisis perintah pengguna dan ekstrak informasi transaksi.
       
@@ -41,18 +48,16 @@ export default async function handler(req, res) {
     `;
 
     const completion = await openai.chat.completions.create({
-      model: "openai/gpt-3.5-turbo", // atau model lain yang tersedia di OpenRouter
+      model: "openai/gpt-3.5-turbo",
       messages: [{ role: "user", content: prompt }],
       max_tokens: 500,
     });
 
     const text = completion.choices[0].message.content;
-    console.log('OpenAI response:', text);
 
     // Parse JSON from OpenAI response
     let transactionData;
     try {
-      // Extract JSON from the response (in case there's extra text)
       const jsonMatch = text.match(/\{[\s\S]*\}/);
       if (jsonMatch) {
         transactionData = JSON.parse(jsonMatch[0]);
@@ -60,7 +65,6 @@ export default async function handler(req, res) {
         throw new Error('No valid JSON found in response');
       }
     } catch (parseError) {
-      console.error('Error parsing OpenAI response:', parseError);
       return res.status(400).json({ error: 'Gagal memproses perintah. Silakan coba lagi dengan perintah yang lebih jelas.' });
     }
 
@@ -69,14 +73,13 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: 'Data transaksi tidak lengkap. Pastikan perintah Anda jelas.' });
     }
 
-    console.log('Transaction data:', transactionData);
-
     // Connect to MongoDB and save transaction
-    await client.connect();
-    const database = client.db('financialTracker');
-    const transactions = database.collection('transactions');
+    const client = await clientPromise;
+    const db = client.db();
+    const transactions = db.collection('transactions');
 
-    const mongoResult = await transactions.insertOne({
+    const result = await transactions.insertOne({
+      userId, // Add userId for multi-tenant
       type: transactionData.type,
       amount: parseFloat(transactionData.amount),
       category: transactionData.category,
@@ -84,19 +87,14 @@ export default async function handler(req, res) {
       note: transactionData.note || ''
     });
 
-    console.log('MongoDB result:', mongoResult);
-
     res.status(201).json({ 
       success: true, 
       transaction: {
-        _id: mongoResult.insertedId,
+        _id: result.insertedId,
         ...transactionData
       }
     });
   } catch (error) {
-    console.error('Error with auto transaction:', error);
     res.status(500).json({ error: error.message });
-  } finally {
-    await client.close();
   }
 }
