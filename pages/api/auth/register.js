@@ -1,49 +1,62 @@
-import clientPromise from "../../../lib/mongodb";
-import { hashPassword, signToken } from "../../../lib/auth";
+import clientPromise from '../../../lib/mongodb';
+import bcrypt from 'bcryptjs';
 
 export default async function handler(req, res) {
-  if (req.method !== "POST") {
-    return res.status(405).json({ error: "Method not allowed" });
+  if (req.method !== 'POST') {
+    return res.status(405).json({ message: 'Method not allowed' });
   }
 
   try {
-    const client = await clientPromise;
-    const db = client.db();
-    const users = db.collection("users");
-
     const { name, email, password } = req.body;
 
+    // Validasi input
     if (!name || !email || !password) {
-      return res.status(400).json({ error: "Missing required fields" });
+      return res.status(400).json({ message: 'Please provide all required fields' });
     }
 
-    const existingUser = await users.findOne({ email });
+    if (password.length < 6) {
+      return res.status(400).json({ message: 'Password must be at least 6 characters' });
+    }
+
+    const client = await clientPromise;
+    const db = client.db();
+    const usersCollection = db.collection('users');
+
+    // Check if user already exists
+    const existingUser = await usersCollection.findOne({ email });
     if (existingUser) {
-      return res.status(400).json({ error: "Email already registered" });
+      return res.status(400).json({ message: 'User already exists' });
     }
 
-    const hashedPassword = await hashPassword(password);
+    // Hash password
+    const hashedPassword = await bcrypt.hash(password, 10);
 
-    const result = await users.insertOne({
+    // Create user
+    const result = await usersCollection.insertOne({
       name,
       email,
       password: hashedPassword,
       createdAt: new Date(),
     });
 
-    const token = signToken({
+    // Return user data without password
+    const user = {
       id: result.insertedId,
       name,
       email,
-    });
+    };
 
-    return res.status(201).json({
-      message: "User registered successfully",
-      token,
-      user: { id: result.insertedId, name, email },
+    res.status(201).json({
+      success: true,
+      message: 'User registered successfully',
+      user,
     });
   } catch (error) {
-    console.error("Register error:", error);
-    return res.status(500).json({ error: "Internal Server Error" });
+    console.error('Registration error:', error);
+    res.status(500).json({ 
+      message: 'Server error',
+      error: error.message,
+      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+    });
   }
 }
