@@ -1,65 +1,83 @@
-import clientPromise from '../../../lib/mongodb';
+import { MongoClient } from 'mongodb';
 import bcrypt from 'bcryptjs';
-import jwt from 'jsonwebtoken';
 
 export default async function handler(req, res) {
+  // Log untuk debugging
+  console.log('Register endpoint called with method:', req.method);
+  
+  // Cek method request
   if (req.method !== 'POST') {
-    return res.status(405).json({ message: 'Method not allowed' });
+    console.log('Method not allowed:', req.method);
+    res.setHeader('Allow', ['POST']);
+    return res.status(405).json({ message: `Method ${req.method} not allowed` });
   }
 
   try {
-    const { email, password } = req.body;
+    const { name, email, password } = req.body;
+    console.log('Registration attempt for:', email);
 
     // Validasi input
-    if (!email || !password) {
-      return res.status(400).json({ message: 'Please provide email and password' });
+    if (!name || !email || !password) {
+      return res.status(400).json({ message: 'Please provide all required fields' });
     }
 
-    const client = await clientPromise;
+    if (password.length < 6) {
+      return res.status(400).json({ message: 'Password must be at least 6 characters' });
+    }
+
+    // Koneksi langsung ke MongoDB tanpa melalui clientPromise
+    const uri = process.env.MONGODB_URI;
+    const client = new MongoClient(uri, {
+      ssl: true,
+      sslValidate: false,
+      tls: true,
+      tlsAllowInvalidCertificates: true,
+      tlsAllowInvalidHostnames: true,
+    });
+    
+    await client.connect();
+    console.log('Connected directly to MongoDB');
+    
     const db = client.db();
     const usersCollection = db.collection('users');
 
-    // Find user
-    const user = await usersCollection.findOne({ email });
-    if (!user) {
-      return res.status(401).json({ message: 'Invalid credentials' });
+    // Check if user already exists
+    const existingUser = await usersCollection.findOne({ email });
+    if (existingUser) {
+      await client.close();
+      return res.status(400).json({ message: 'User already exists' });
     }
 
-    // Check password
-    const isPasswordValid = await bcrypt.compare(password, user.password);
-    if (!isPasswordValid) {
-      return res.status(401).json({ message: 'Invalid credentials' });
-    }
+    // Hash password
+    const hashedPassword = await bcrypt.hash(password, 10);
 
-    // Create JWT token
-    const token = jwt.sign(
-      { userId: user._id.toString() },
-      process.env.JWT_SECRET,
-      { expiresIn: '7d' }
-    );
+    // Create user
+    const result = await usersCollection.insertOne({
+      name,
+      email,
+      password: hashedPassword,
+      createdAt: new Date(),
+    });
 
-    // Set HTTP-only cookie with token
-    res.setHeader(
-      'Set-Cookie',
-      `token=${token}; HttpOnly; Path=/; Max-Age=${
-        7 * 24 * 60 * 60
-      }; SameSite=Strict;${process.env.NODE_ENV === 'production' ? ' Secure' : ''}`
-    );
+    // Close connection
+    await client.close();
 
     // Return user data without password
-    const userData = {
-      id: user._id.toString(),
-      name: user.name,
-      email: user.email,
+    const user = {
+      id: result.insertedId,
+      name,
+      email,
     };
 
-    res.status(200).json({
+    console.log('User registered successfully:', email);
+    
+    res.status(201).json({
       success: true,
-      message: 'Login successful',
-      user: userData,
+      message: 'User registered successfully',
+      user,
     });
   } catch (error) {
-    console.error('Login error:', error);
+    console.error('Registration error:', error);
     res.status(500).json({ 
       message: 'Server error',
       error: error.message,
