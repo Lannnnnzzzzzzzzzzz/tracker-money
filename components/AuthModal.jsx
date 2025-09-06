@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import { FiX, FiMail, FiLock } from 'react-icons/fi';
-import axios from 'axios';
+import { useRouter } from 'next/router';
 
-const AuthModal = ({ isOpen, onClose, mode = 'login' }) => {
+const AuthModal = ({ isOpen, onClose, initialMode = 'login' }) => {
+  const [mode, setMode] = useState(initialMode);
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -11,6 +12,7 @@ const AuthModal = ({ isOpen, onClose, mode = 'login' }) => {
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const router = useRouter();
 
   const handleChange = (e) => {
     setFormData({
@@ -19,11 +21,23 @@ const AuthModal = ({ isOpen, onClose, mode = 'login' }) => {
     });
   };
 
+  const switchMode = (newMode) => {
+    setMode(newMode);
+    // Reset form saat beralih mode
+    setFormData({
+      name: '',
+      email: '',
+      password: '',
+      confirmPassword: ''
+    });
+    setError('');
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
     setError('');
-
+    
     try {
       if (mode === 'register') {
         if (formData.password !== formData.confirmPassword) {
@@ -31,27 +45,59 @@ const AuthModal = ({ isOpen, onClose, mode = 'login' }) => {
           setLoading(false);
           return;
         }
-
-        await axios.post('/api/auth/register', {
-          name: formData.name,
-          email: formData.email,
-          password: formData.password
+        
+        const response = await fetch('/api/auth/register', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            name: formData.name,
+            email: formData.email,
+            password: formData.password
+          }),
         });
+        
+        const data = await response.json();
+        
+        if (!response.ok) {
+          throw new Error(data.message || 'Terjadi kesalahan saat registrasi');
+        }
+        
+        // Tampilkan pesan sukses
+        setError('');
+        alert('Registrasi berhasil! Silakan login dengan akun yang baru dibuat.');
+        
+        // Beralih ke mode login
+        switchMode('login');
       } else {
-        const response = await axios.post('/api/auth/login', {
-          email: formData.email,
-          password: formData.password
+        const response = await fetch('/api/auth/login', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            email: formData.email,
+            password: formData.password
+          }),
         });
+        
+        const data = await response.json();
+        
+        if (!response.ok) {
+          throw new Error(data.message || 'Terjadi kesalahan saat login');
+        }
         
         // Save token to localStorage
-        localStorage.setItem('token', response.data.token);
-        localStorage.setItem('user', JSON.stringify(response.data.user));
+        localStorage.setItem('token', data.token);
+        localStorage.setItem('user', JSON.stringify(data.user));
         
         // Redirect to dashboard
-        window.location.href = '/dashboard';
+        router.push('/dashboard');
+        onClose();
       }
     } catch (error) {
-      setError(error.response?.data?.error || 'Terjadi kesalahan');
+      setError(error.response?.data?.error || error.message || 'Terjadi kesalahan');
     } finally {
       setLoading(false);
     }
@@ -70,13 +116,13 @@ const AuthModal = ({ isOpen, onClose, mode = 'login' }) => {
             <FiX />
           </button>
         </div>
-
+        
         {error && (
           <div className="mb-4 p-3 bg-red-900 text-red-100 rounded-lg">
             {error}
           </div>
         )}
-
+        
         <form onSubmit={handleSubmit}>
           {mode === 'register' && (
             <div className="mb-4">
@@ -94,7 +140,7 @@ const AuthModal = ({ isOpen, onClose, mode = 'login' }) => {
               </div>
             </div>
           )}
-
+          
           <div className="mb-4">
             <label className="block mb-2">Email</label>
             <div className="relative">
@@ -109,7 +155,7 @@ const AuthModal = ({ isOpen, onClose, mode = 'login' }) => {
               />
             </div>
           </div>
-
+          
           <div className="mb-4">
             <label className="block mb-2">Password</label>
             <div className="relative">
@@ -124,7 +170,7 @@ const AuthModal = ({ isOpen, onClose, mode = 'login' }) => {
               />
             </div>
           </div>
-
+          
           {mode === 'register' && (
             <div className="mb-4">
               <label className="block mb-2">Konfirmasi Password</label>
@@ -141,7 +187,7 @@ const AuthModal = ({ isOpen, onClose, mode = 'login' }) => {
               </div>
             </div>
           )}
-
+          
           <button
             type="submit"
             disabled={loading}
@@ -149,17 +195,14 @@ const AuthModal = ({ isOpen, onClose, mode = 'login' }) => {
           >
             {loading ? 'Memproses...' : mode === 'register' ? 'Daftar' : 'Login'}
           </button>
-
+          
           <div className="mt-4 text-center">
             {mode === 'login' ? (
               <p>
                 Belum punya akun?{' '}
                 <button
                   type="button"
-                  onClick={() => {
-                    setFormData({ name: '', email: '', password: '', confirmPassword: '' });
-                    setError('');
-                  }}
+                  onClick={() => switchMode('register')}
                   className="text-blue-400 hover:underline"
                 >
                   Daftar di sini
@@ -170,10 +213,7 @@ const AuthModal = ({ isOpen, onClose, mode = 'login' }) => {
                 Sudah punya akun?{' '}
                 <button
                   type="button"
-                  onClick={() => {
-                    setFormData({ name: '', email: '', password: '', confirmPassword: '' });
-                    setError('');
-                  }}
+                  onClick={() => switchMode('login')}
                   className="text-blue-400 hover:underline"
                 >
                   Login di sini
