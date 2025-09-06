@@ -1,10 +1,45 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { FiDollarSign, FiTrendingUp, FiPieChart, FiMessageSquare } from 'react-icons/fi';
+import { useRouter } from 'next/router';
 import AuthModal from '../components/AuthModal';
 
 export default function Home() {
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [authMode, setAuthMode] = useState('login');
+  const [user, setUser] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const router = useRouter();
+
+  useEffect(() => {
+    checkAuthStatus();
+  }, []);
+
+  const checkAuthStatus = async () => {
+    try {
+      // Cek apakah pengguna sudah login dari localStorage
+      const token = localStorage.getItem('token');
+      const userData = localStorage.getItem('user');
+      
+      if (token && userData) {
+        setUser(JSON.parse(userData));
+      }
+    } catch (error) {
+      console.error('Auth check error:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const openAuthModal = (mode) => {
+    setAuthMode(mode);
+    setIsAuthModalOpen(true);
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+    setUser(null);
+  };
 
   const features = [
     {
@@ -29,6 +64,67 @@ export default function Home() {
     }
   ];
 
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-gray-900 to-gray-800 text-white flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500 mx-auto"></div>
+          <p className="mt-4">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (user) {
+    // Jika pengguna sudah login, arahkan ke dashboard
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-gray-900 to-gray-800 text-white">
+        <div className="container mx-auto px-4 py-16">
+          <div className="text-center mb-16">
+            <h1 className="text-4xl md:text-6xl font-bold mb-6">
+              Selamat Datang Kembali, {user.name}!
+            </h1>
+            <p className="text-xl text-gray-300 mb-8 max-w-2xl mx-auto">
+              Anda sudah login. Klik tombol di bawah untuk menuju dashboard Anda.
+            </p>
+            
+            <div className="flex flex-col sm:flex-row gap-4 justify-center">
+              <button 
+                onClick={() => router.push('/dashboard')}
+                className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg font-medium transition"
+              >
+                Menuju Dashboard
+              </button>
+              <button 
+                onClick={handleLogout}
+                className="bg-transparent border-2 border-red-600 text-red-600 hover:bg-red-600 hover:text-white px-6 py-3 rounded-lg font-medium transition"
+              >
+                Logout
+              </button>
+            </div>
+          </div>
+          
+          {/* Features Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 mt-16">
+            {features.map((feature, index) => (
+              <div 
+                key={index} 
+                className="bg-gray-800 p-6 rounded-xl hover:bg-gray-750 transition-all duration-300 hover:scale-105"
+              >
+                <div className="mb-4">
+                  {feature.icon}
+                </div>
+                <h3 className="text-xl font-semibold mb-2">{feature.title}</h3>
+                <p className="text-gray-400">{feature.description}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Jika pengguna belum login, tampilkan halaman utama
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-900 to-gray-800 text-white">
       {/* Hero Section */}
@@ -43,26 +139,20 @@ export default function Home() {
           
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <button 
-              onClick={() => {
-                setAuthMode('login');
-                setIsAuthModalOpen(true);
-              }}
+              onClick={() => openAuthModal('login')}
               className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg font-medium transition"
             >
               Login
             </button>
             <button 
-              onClick={() => {
-                setAuthMode('register');
-                setIsAuthModalOpen(true);
-              }}
+              onClick={() => openAuthModal('register')}
               className="bg-transparent border-2 border-blue-600 text-blue-600 hover:bg-blue-600 hover:text-white px-6 py-3 rounded-lg font-medium transition"
             >
               Daftar Gratis
             </button>
           </div>
         </div>
-
+        
         {/* Features Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 mt-16">
           {features.map((feature, index) => (
@@ -78,7 +168,7 @@ export default function Home() {
             </div>
           ))}
         </div>
-
+        
         {/* How It Works */}
         <div className="mt-24">
           <h2 className="text-3xl font-bold text-center mb-12">Cara Kerja</h2>
@@ -107,7 +197,7 @@ export default function Home() {
           </div>
         </div>
       </div>
-
+      
       {/* Testimonials */}
       <div className="mt-24 bg-gray-800 py-16">
         <div className="container mx-auto px-4">
@@ -152,7 +242,7 @@ export default function Home() {
           </div>
         </div>
       </div>
-
+      
       {/* CTA Section */}
       <div className="mt-24 text-center">
         <h2 className="text-3xl font-bold mb-6">Mulai Kelola Keuangan Anda Hari Ini</h2>
@@ -160,21 +250,17 @@ export default function Home() {
           Bergabung dengan ribuan pengguna lain yang telah mengubah cara mereka mengelola keuangan
         </p>
         <button 
-          onClick={() => {
-            setAuthMode('register');
-            setIsAuthModalOpen(true);
-          }}
+          onClick={() => openAuthModal('register')}
           className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-3 rounded-lg font-medium text-lg transition"
         >
           Daftar Sekarang - Gratis
         </button>
       </div>
-
+      
       <AuthModal 
         isOpen={isAuthModalOpen}
         onClose={() => setIsAuthModalOpen(false)}
-        mode={authMode}
-        onModeChange={setAuthMode}
+        initialMode={authMode}
       />
     </div>
   );
