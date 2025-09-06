@@ -2,12 +2,19 @@ import clientPromise from '../../../lib/mongodb';
 import bcrypt from 'bcryptjs';
 
 export default async function handler(req, res) {
+  // Log untuk debugging
+  console.log('Register endpoint called with method:', req.method);
+  
+  // Cek method request
   if (req.method !== 'POST') {
-    return res.status(405).json({ message: 'Method not allowed' });
+    console.log('Method not allowed:', req.method);
+    res.setHeader('Allow', ['POST']);
+    return res.status(405).json({ message: `Method ${req.method} not allowed` });
   }
 
   try {
     const { name, email, password } = req.body;
+    console.log('Registration attempt for:', email);
 
     // Validasi input
     if (!name || !email || !password) {
@@ -46,6 +53,8 @@ export default async function handler(req, res) {
       email,
     };
 
+    console.log('User registered successfully:', email);
+    
     res.status(201).json({
       success: true,
       message: 'User registered successfully',
